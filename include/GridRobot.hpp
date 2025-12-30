@@ -2,12 +2,14 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <deque>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include <Eigen/Dense>
+#include <torch/script.h>
 
 #include "ankle_kinematics.hpp"
 #include "config.hpp"
@@ -35,7 +37,14 @@ public:
     int imu_baud = 921600;
     bool imu_enable = true;
     bool imu_only = false;
-    int telemetry_hz = 2;  
+    int telemetry_hz = 2;
+
+    // policy / observation
+    std::string policy_path;
+    std::string policy_device = "cpu";
+    int obs_stack = 4;
+    float action_scale = 0.15f;   // rad step per action unit
+    float action_clip = 0.6f;     // clamp final q_des
   };
 
   static Args parse_args(int argc, char** argv);
@@ -67,9 +76,26 @@ private:
   void databusRead_();
   void ankleCalc_();         // FK/IK
   void databusWrite_(double t);
+  void databusWritePolicy_(double t);
+  void applyJointTargetsToMotors_();
+  bool applySingleAnkleTargets_(const std::string& motor_left,
+                                const std::string& motor_right,
+                                const std::string& joint_pitch_name,
+                                const std::string& joint_roll_name);
   void applyCmd_();
   void logStep_(double t);
   void printStep_();
+  void writeDampingCommandsForAll_(const std::string& reason);
+  void initMotorLimits_();
+  bool checkMotorLimits_();
+
+  // policy + observation helpers
+  void resetObservationBuffers_();
+  std::vector<float> buildBaseObservation_() const;
+  std::vector<float> updateAndStackObs_();
+  bool loadPolicy_();
+  std::vector<float> runPolicy_(const std::vector<float>& obs);
+  void applyPolicyActions_(const std::vector<float>& actions);
 
 private:
   Args args_{};
@@ -142,9 +168,27 @@ private:
   double last_L_fkik_em1_deg_ = NAN;
   double last_L_fkik_em2_deg_ = NAN;
 
-  // Right ankle
+  // Right ankle (预留)
   double last_R_pitch_deg_ = NAN;
   double last_R_roll_deg_ = NAN;
   double last_R_fkik_em1_deg_ = NAN;
   double last_R_fkik_em2_deg_ = NAN;
+
+  // ---- safety / policy ----
+  struct MotorLimit { float min_rad; float max_rad; };
+  std::unordered_map<std::string, MotorLimit> motor_limits_;
+  bool limit_tripped_ = false;
+  std::string limit_reason_;
+
+  // humanoid-gym style obs stack
+  std::deque<std::vector<float>> obs_history_;
+  size_t obs_dim_ = 0;
+  std::vector<float> latest_obs_;
+  std::vector<float> latest_action_;
+
+  // policy
+  std::string policy_device_ = "cpu";
+  torch::jit::script::Module policy_;
+  bool policy_loaded_ = false;
+  bool policy_shape_warned_ = false;
 };

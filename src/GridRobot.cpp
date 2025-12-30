@@ -4,6 +4,9 @@
 #include <iostream>
 #include <thread>
 #include <cmath>
+#include <algorithm>
+#include <sstream>
+#include <cstring>
 
 static void motorState_update_state_from_motor(RobStrideMotor* m, MotorState& s)
 {
@@ -82,6 +85,11 @@ GridRobot::Args GridRobot::parse_args(int argc, char** argv) {
     else if (k=="--imu-port") a.imu_port = need(k);
     else if (k=="--imu-baud") a.imu_baud = std::stoi(need(k));
     else if (k=="--telemetry-hz") a.telemetry_hz = std::stoi(need(k));
+    else if (k=="--policy") a.policy_path = need(k);
+    else if (k=="--policy-device") a.policy_device = need(k);
+    else if (k=="--obs-stack") a.obs_stack = std::stoi(need(k));
+    else if (k=="--action-scale") a.action_scale = std::stof(need(k));
+    else if (k=="--action-clip") a.action_clip = std::stof(need(k));
 
     else if (k=="--help") {
       std::cout <<
@@ -92,7 +100,9 @@ GridRobot::Args GridRobot::parse_args(int argc, char** argv) {
         "              [--test damping|sine|hold|fkik]\n"
         "              [--amp 0.3 --freq 0.5]\n"
         "              [--kp 20 --kd 1]\n"
-        "              [--dry-run]   (load yaml + select motors, but DO NOT open /dev/USB2CAN*)\n";
+        "              [--dry-run]   (load yaml + select motors, but DO NOT open /dev/USB2CAN*)\n"
+        "              [--policy <script.pt>] [--policy-device cpu|cuda:0]\n"
+        "              [--obs-stack 4] [--action-scale 0.15] [--action-clip 0.6]\n";
       std::exit(0);
     }
   }
@@ -107,6 +117,9 @@ bool GridRobot::group_selected(const std::string& group, const std::vector<std::
 
 bool GridRobot::init(const Args& args) {
   args_ = args;
+  args_.obs_stack = std::max(1, args_.obs_stack);
+  args_.action_clip = std::max(args_.action_clip, 0.0f);
+  policy_device_ = args_.policy_device;
   only_groups_ = split_csv(args_.only_group_csv);
 
   std::cout << "Loading config: " << args_.config << "\n";
@@ -120,6 +133,9 @@ bool GridRobot::init(const Args& args) {
   dt_us_ = int(1e6 / std::max(1, args_.rate_hz));
   next_ = std::chrono::steady_clock::now();
   t0_   = std::chrono::steady_clock::now();
+
+  initMotorLimits_();
+  resetObservationBuffers_();
 
   if (args_.dry_run) return initDryRun();
   return initHardware();
@@ -178,6 +194,7 @@ bool GridRobot::initDryRun()
   // 2) 再创建 databus（size 与选中电机一致；imu-only 时 size=0 也没问题）
   databus_ = DataBus((int)dry_selected_.size());
   databus_.disable_all();
+  resetObservationBuffers_();
 
   // 3) 最后启动 IMU（dry-run 也启动）
   if (args_.imu_enable) {
@@ -296,6 +313,10 @@ bool GridRobot::initHardware() {
   openLog_();
   databus_ = DataBus((int)active_.size());
   databus_.disable_all();
+  resetObservationBuffers_();
+  if (!args_.policy_path.empty()) {
+    policy_loaded_ = loadPolicy_();
+  }
 
   motorPos_rad_ = Eigen::VectorXd::Zero((int)active_.size());
   motorVel_rad_= Eigen::VectorXd::Zero((int)active_.size());
@@ -496,7 +517,14 @@ void GridRobot::execHardware(std::atomic<bool>& run_flag) {
 
     databusRead_();
     ankleCalc_();
-    databusWrite_(t);
+    bool limited = checkMotorLimits_();
+    if (limited) {
+      writeDampingCommandsForAll_(limit_reason_);
+    } else if (policy_loaded_) {
+      databusWritePolicy_(t);
+    } else {
+      databusWrite_(t);
+    }
     logStep_(t);
     applyCmd_();
     printStep_();
@@ -578,11 +606,11 @@ void GridRobot::ankleCalc_() {
   auto fk = ankle::forwardKinematics(ankleP_, m1_deg, m2_deg, 0.0, 0.0, 80, 1e-10);
   if (!fk.ok) return;
 
-  last_pitch_deg_ = fk.joint_deg.pitch_deg;
-  last_roll_deg_  = fk.joint_deg.roll_deg;
+  last_L_pitch_deg_ = fk.joint_deg.pitch_deg;
+  last_L_roll_deg_  = fk.joint_deg.roll_deg;
   // 更新一下joint的Pos数据
-  jointPos_rad_(j_pitch) = ankle::deg2rad(last_pitch_deg_);
-  jointPos_rad_(j_roll)  = ankle::deg2rad(last_roll_deg_);
+  jointPos_rad_(j_pitch) = ankle::deg2rad(last_L_pitch_deg_);
+  jointPos_rad_(j_roll)  = ankle::deg2rad(last_L_roll_deg_);
 
   databus_.jointState(j_pitch).q_joint = jointPos_rad_(j_pitch);
   databus_.jointState(j_roll).q_joint  = jointPos_rad_(j_roll);
@@ -618,7 +646,7 @@ void GridRobot::ankleCalc_() {
   databus_.jointState(j_pitch).tau_joint = tau_q(0);
   databus_.jointState(j_roll).tau_joint = tau_q(1);
   // FK->IK 自洽误差
-  auto ik = ankle::inverseKinematics(ankleP_, last_pitch_deg_, last_roll_deg_);
+  auto ik = ankle::inverseKinematics(ankleP_, last_L_pitch_deg_, last_L_roll_deg_);
   if (ik.ok)
   {
     auto err = [&](const decltype(ik.sol_minus) &sol)
@@ -628,13 +656,13 @@ void GridRobot::ankleCalc_() {
     const double e_minus = err(ik.sol_minus);
     const double e_plus = err(ik.sol_plus);
     const auto &sol = (e_minus <= e_plus) ? ik.sol_minus : ik.sol_plus;
-    last_fkik_em1_deg_ = std::abs(sol.m1_deg - m1_deg);
-    last_fkik_em2_deg_ = std::abs(sol.m2_deg - m2_deg);
+    last_L_fkik_em1_deg_ = std::abs(sol.m1_deg - m1_deg);
+    last_L_fkik_em2_deg_ = std::abs(sol.m2_deg - m2_deg);
   }
   else
   {
-    last_fkik_em1_deg_ = NAN;
-    last_fkik_em2_deg_ = NAN;
+    last_L_fkik_em1_deg_ = NAN;
+    last_L_fkik_em2_deg_ = NAN;
   }
 }
 
@@ -859,6 +887,171 @@ void GridRobot::databusWrite_(double t) {
   }
 }
 
+void GridRobot::databusWritePolicy_(double t) {
+  (void)t;
+  latest_obs_ = updateAndStackObs_();
+  if (latest_obs_.empty()) {
+    writeDampingCommandsForAll_("[policy] empty observation (stack not ready)");
+    return;
+  }
+
+  latest_action_ = runPolicy_(latest_obs_);
+  if (latest_action_.empty()) {
+    writeDampingCommandsForAll_("[policy] empty action from policy");
+    return;
+  }
+  applyPolicyActions_(latest_action_);
+}
+
+void GridRobot::applyPolicyActions_(const std::vector<float>& actions) {
+  if ((int)actions.size() < databus_.size()) {
+    if (!policy_shape_warned_) {
+      std::cerr << "[policy] action dim " << actions.size()
+                << " < motor dim " << databus_.size()
+                << " -> fallback damping\n";
+      policy_shape_warned_ = true;
+    }
+    writeDampingCommandsForAll_("[policy] action dim mismatch");
+    return;
+  }
+
+  // 先清空上一周期的命令
+  for (int i=0;i<databus_.size();++i) {
+    databus_.motorCmd(i) = MotorCmd{};
+  }
+  jointCmdPos_rad_.setZero();
+  jointCmdVel_rad_.setZero();
+
+  for (int i=0;i<databus_.size();++i) {
+    double raw = std::clamp<double>(actions[i], -1.0, 1.0);
+    double delta = raw * (double)args_.action_scale;
+    double target = jointPos_rad_(i) + delta;
+
+    const auto name = (i < (int)joint_names_.size()) ? joint_names_[i] : std::string{};
+    auto it_lim = motor_limits_.find(name);
+    if (it_lim != motor_limits_.end()) {
+      target = std::clamp(target, (double)it_lim->second.min_rad, (double)it_lim->second.max_rad);
+    } else if (args_.action_clip > 0.f) {
+      target = std::clamp(target, -(double)args_.action_clip, (double)args_.action_clip);
+    }
+
+    jointCmdPos_rad_(i) = target;
+    jointCmdVel_rad_(i) = 0.0;
+    databus_.jointCmd(i).q_joint_des  = (float)target;
+    databus_.jointCmd(i).dq_joint_des = 0.f;
+  }
+
+  applyJointTargetsToMotors_();
+}
+
+void GridRobot::applyJointTargetsToMotors_() {
+  std::vector<bool> handled(active_.size(), false);
+
+  auto mark = [&](const std::string& m){
+    auto it = idx_.find(m);
+    if (it != idx_.end() && it->second < (int)handled.size()) handled[it->second] = true;
+  };
+
+  if (applySingleAnkleTargets_("L_ankle_L", "L_ankle_R", "L_ankle_pitch", "L_ankle_roll")) {
+    mark("L_ankle_L");
+    mark("L_ankle_R");
+  }
+  if (applySingleAnkleTargets_("R_ankle_L", "R_ankle_R", "R_ankle_pitch", "R_ankle_roll")) {
+    mark("R_ankle_L");
+    mark("R_ankle_R");
+  }
+
+  for (int i=0;i<(int)active_.size();++i) {
+    if (handled[i]) continue;
+
+    auto& c = databus_.motorCmd(i);
+    c.enable = true;
+    c.mode   = CtrlMode::MOTION;
+    c.tau_ff = 0.f;
+    c.q_des  = (float)jointCmdPos_rad_(i);
+    c.dq_des = (float)jointCmdVel_rad_(i);
+    c.kp     = kp_by_idx_[i];
+    c.kd     = kd_by_idx_[i];
+
+    motorCmdPos_rad_(i) = c.q_des;
+    motorCmdVel_rad_(i) = c.dq_des;
+  }
+}
+
+bool GridRobot::applySingleAnkleTargets_(const std::string& motor_left,
+                                const std::string& motor_right,
+                                const std::string& joint_pitch_name,
+                                const std::string& joint_roll_name) {
+  auto it1 = idx_.find(motor_left);
+  auto it2 = idx_.find(motor_right);
+  auto jp_it = joint_idx_.find(joint_pitch_name);
+  auto jr_it = joint_idx_.find(joint_roll_name);
+  if (it1==idx_.end() || it2==idx_.end() || jp_it==joint_idx_.end() || jr_it==joint_idx_.end()) return false;
+
+  const int im1 = it1->second;
+  const int im2 = it2->second;
+  const int j_pitch = jp_it->second;
+  const int j_roll  = jr_it->second;
+
+  const double pitch_des = jointCmdPos_rad_(j_pitch);
+  const double roll_des  = jointCmdPos_rad_(j_roll);
+  const double pitch_d_des = jointCmdVel_rad_(j_pitch);
+  const double roll_d_des  = jointCmdVel_rad_(j_roll);
+
+  auto ik = ankle::inverseKinematics(
+    ankleP_,
+    ankle::rad2deg(pitch_des),
+    ankle::rad2deg(roll_des));
+  if (!ik.ok) {
+    databus_.motorCmd(im1) = MotorCmd{};
+    databus_.motorCmd(im2) = MotorCmd{};
+    return true;
+  }
+
+  const double m1_deg_cur = ankle::rad2deg(motorPos_rad_(im1));
+  const double m2_deg_cur = ankle::rad2deg(motorPos_rad_(im2));
+  auto err = [&](const decltype(ik.sol_minus)& s){
+    return std::abs(s.m1_deg - m1_deg_cur) + std::abs(s.m2_deg - m2_deg_cur);
+  };
+  const auto& sol = (err(ik.sol_minus) <= err(ik.sol_plus)) ? ik.sol_minus : ik.sol_plus;
+
+  const double m1_des_rad = ankle::deg2rad(sol.m1_deg);
+  const double m2_des_rad = ankle::deg2rad(sol.m2_deg);
+
+  Eigen::Vector2d mdot = ankle::ikVelocity_motor(
+      ankleP_,
+      jointPos_rad_(j_pitch),
+      jointPos_rad_(j_roll),
+      motorPos_rad_(im1),
+      motorPos_rad_(im2),
+      pitch_d_des,
+      roll_d_des);
+
+  auto& c1 = databus_.motorCmd(im1);
+  c1.enable = true;
+  c1.mode   = CtrlMode::MOTION;
+  c1.tau_ff = 0.f;
+  c1.q_des  = (float)m1_des_rad;
+  c1.dq_des = (float)mdot(0);
+  c1.kp     = kp_by_idx_[im1];
+  c1.kd     = kd_by_idx_[im1];
+
+  auto& c2 = databus_.motorCmd(im2);
+  c2.enable = true;
+  c2.mode   = CtrlMode::MOTION;
+  c2.tau_ff = 0.f;
+  c2.q_des  = (float)m2_des_rad;
+  c2.dq_des = (float)mdot(1);
+  c2.kp     = kp_by_idx_[im2];
+  c2.kd     = kd_by_idx_[im2];
+
+  motorCmdPos_rad_(im1) = c1.q_des;
+  motorCmdVel_rad_(im1) = c1.dq_des;
+  motorCmdPos_rad_(im2) = c2.q_des;
+  motorCmdVel_rad_(im2) = c2.dq_des;
+  return true;
+}
+
 void GridRobot::applyCmd_() {
   for (int i=0;i<(int)active_.size();++i) {
     db_apply_cmd_to_motor(active_[i], databus_.motorCmd(i));
@@ -897,10 +1090,174 @@ void GridRobot::printStep_() {
     databus_.print_telemetry_line("Telemetry(databus)");
 
     // 补充一行 ankle 观测
-    if (!std::isnan(last_pitch_deg_)) {
-      std::cout << "[ankle] pitch=" << last_pitch_deg_
-                << " roll=" << last_roll_deg_
-                << " fkik_err_m(deg)=(" << last_fkik_em1_deg_ << "," << last_fkik_em2_deg_ << ")\n";
+    if (!std::isnan(last_L_pitch_deg_)) {
+      std::cout << "[ankle] pitch=" << last_L_pitch_deg_
+                << " roll=" << last_L_roll_deg_
+                << " fkik_err_m(deg)=(" << last_L_fkik_em1_deg_ << "," << last_L_fkik_em2_deg_ << ")\n";
     }
+  }
+}
+
+void GridRobot::writeDampingCommandsForAll_(const std::string& reason) {
+  static std::string last_reason;
+  if (!reason.empty() && reason != last_reason) {
+    std::cout << "[safety] " << reason << "\n";
+    last_reason = reason;
+  }
+
+  for (int i=0;i<databus_.size();++i) {
+    auto& c = databus_.motorCmd(i);
+    c.enable = true;
+    c.mode   = CtrlMode::MOTION;
+    c.tau_ff = 0.f;
+    c.q_des  = databus_.motorState(i).q;
+    c.dq_des = 0.f;
+    c.kp     = 0.f;
+    c.kd     = (i < (int)kd_by_idx_.size()) ? kd_by_idx_[i] : 0.f;
+
+    motorCmdPos_rad_(i) = c.q_des;
+    motorCmdVel_rad_(i) = c.dq_des;
+  }
+}
+
+void GridRobot::initMotorLimits_() {
+  motor_limits_.clear();
+  motor_limits_ = {
+    {"L_hip_roll",   {-0.1f, 0.8f}},
+    {"L_hip_yaw",    {-0.3f, 0.1f}},
+    {"L_hip_pitch",  {-0.9f, 0.9f}},
+    {"L_knee",       {-1.57f, 0.0f}},
+    {"L_ankle_pitch",{-0.1f, 0.5f}},
+    {"L_ankle_roll", {-0.5f, 0.1f}},
+
+    {"R_hip_roll",   {-0.8f, 0.1f}},
+    {"R_hip_yaw",    {-0.1f, 0.3f}},
+    {"R_hip_pitch",  {-0.9f, 0.9f}},
+    {"R_knee",       {0.0f, 1.57f}},
+    {"R_ankle_pitch",{ -0.1f, 0.5f}},
+    {"R_ankle_roll", { -0.5f, 0.1f}},
+  };
+}
+
+bool GridRobot::checkMotorLimits_() {
+  if (limit_tripped_) return true;
+  if (motor_limits_.empty()) return false;
+
+  for (int i=0;i<databus_.size();++i) {
+    if (i >= (int)joint_names_.size()) continue;
+    const auto name = joint_names_[i];
+    auto it = motor_limits_.find(name);
+    if (it == motor_limits_.end()) continue;
+
+    double q = databus_.jointState(i).q_joint;
+    if (!std::isfinite(q)) q = databus_.motorState(i).q;
+    if (!std::isfinite(q)) continue;
+
+    if (q < (double)it->second.min_rad || q > (double)it->second.max_rad) {
+      std::ostringstream oss;
+      oss << "limit hit " << name << " q=" << q
+          << " limit=[" << it->second.min_rad << "," << it->second.max_rad << "]";
+      limit_reason_ = oss.str();
+      limit_tripped_ = true;
+      std::cout << "[safety] " << limit_reason_ << " -> damping all motors\n";
+      return true;
+    }
+  }
+  return false;
+}
+
+void GridRobot::resetObservationBuffers_() {
+  obs_history_.clear();
+  obs_dim_ = 0;
+  latest_obs_.clear();
+  latest_action_.clear();
+}
+
+std::vector<float> GridRobot::buildBaseObservation_() const {
+  std::vector<float> obs;
+  const int n = databus_.size();
+  // humanoid-gym 风格：展开多个子向量后按时间堆叠
+  obs.reserve(n * 8 + 16);
+
+  for (int i=0;i<n;++i) obs.push_back((float)databus_.jointState(i).q_joint);
+  for (int i=0;i<n;++i) obs.push_back((float)databus_.jointState(i).dq_joint);
+
+  for (int i=0;i<n;++i) obs.push_back(databus_.motorState(i).q);
+  for (int i=0;i<n;++i) obs.push_back(databus_.motorState(i).dq);
+  for (int i=0;i<n;++i) obs.push_back(databus_.motorState(i).tau);
+
+  for (int i=0;i<n;++i) obs.push_back(databus_.motorCmd(i).q_des);
+  for (int i=0;i<n;++i) obs.push_back(databus_.motorCmd(i).dq_des);
+
+  const auto& imu = databus_.imu();
+  obs.push_back(imu.ax); obs.push_back(imu.ay); obs.push_back(imu.az);
+  obs.push_back(imu.gx); obs.push_back(imu.gy); obs.push_back(imu.gz);
+  obs.push_back(imu.roll_deg); obs.push_back(imu.pitch_deg); obs.push_back(imu.yaw_deg);
+
+  return obs;
+}
+
+std::vector<float> GridRobot::updateAndStackObs_() {
+  auto base = buildBaseObservation_();
+  if (obs_dim_ == 0 || obs_dim_ != base.size()) {
+    obs_dim_ = base.size();
+    obs_history_.clear();
+    std::vector<float> zero(obs_dim_, 0.f);
+    for (int i=0;i<std::max(0, args_.obs_stack-1);++i) obs_history_.push_back(zero);
+  }
+
+  obs_history_.push_back(base);
+  while ((int)obs_history_.size() > args_.obs_stack) obs_history_.pop_front();
+
+  std::vector<float> stacked;
+  stacked.reserve(obs_dim_ * obs_history_.size());
+  for (const auto& frame : obs_history_) {
+    stacked.insert(stacked.end(), frame.begin(), frame.end());
+  }
+  return stacked;
+}
+
+bool GridRobot::loadPolicy_() {
+  try {
+    std::cout << "[policy] loading " << args_.policy_path << " on device " << policy_device_ << "\n";
+    policy_ = torch::jit::load(args_.policy_path);
+    policy_.to(torch::Device(policy_device_));
+    policy_.eval();
+    policy_loaded_ = true;
+    return true;
+  } catch (const std::exception& e) {
+    std::cerr << "[policy] load failed: " << e.what() << "\n";
+    policy_loaded_ = false;
+    return false;
+  }
+}
+
+std::vector<float> GridRobot::runPolicy_(const std::vector<float>& obs) {
+  if (!policy_loaded_ || obs.empty()) return {};
+  try {
+    torch::NoGradGuard ng;
+    auto opts = torch::TensorOptions().dtype(torch::kFloat32);
+    auto input = torch::from_blob((void*)obs.data(), {(int64_t)1, (int64_t)obs.size()}, opts).clone();
+    input = input.to(torch::Device(policy_device_));
+
+    auto out_any = policy_.forward({input});
+    torch::Tensor out;
+    if (out_any.isTensor()) {
+      out = out_any.toTensor();
+    } else if (out_any.isTuple() && !out_any.toTuple()->elements().empty()) {
+      out = out_any.toTuple()->elements()[0].toTensor();
+    } else {
+      return {};
+    }
+
+    if (out.dim() == 2 && out.size(0) == 1) out = out.squeeze(0);
+    out = out.to(torch::kCPU).contiguous();
+
+    std::vector<float> action(out.numel());
+    std::memcpy(action.data(), out.data_ptr<float>(), out.numel() * sizeof(float));
+    return action;
+  } catch (const std::exception& e) {
+    std::cerr << "[policy] forward failed: " << e.what() << "\n";
+    return {};
   }
 }
