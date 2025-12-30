@@ -4,7 +4,13 @@ project(robstride_usb2can_ctrl LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# libtorch hint (for zipped releases placed at /opt/libtorch)
+if(NOT DEFINED Torch_DIR AND EXISTS "/opt/libtorch/share/cmake/Torch")
+  set(Torch_DIR "/opt/libtorch/share/cmake/Torch" CACHE PATH "Path to TorchConfig.cmake")
+endif()
+
 find_package(yaml-cpp REQUIRED)
+find_package(Torch REQUIRED)
 option(RS_DO_MOTOR_INIT "Run motor init sequence" ON)
 option(RS_ENABLE_TELEMETRY "Enable telemetry printing" ON)
 set(EIGEN3_INCLUDE_DIR
@@ -15,6 +21,7 @@ add_compile_definitions(
   RS_DO_MOTOR_INIT=$<IF:$<BOOL:${RS_DO_MOTOR_INIT}>,1,0>
   RS_ENABLE_TELEMETRY=$<IF:$<BOOL:${RS_ENABLE_TELEMETRY}>,1,0>
 )
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 
 include_directories(
@@ -36,7 +43,9 @@ target_link_libraries(motor_test PRIVATE yaml-cpp pthread)
 target_include_directories(motor_test PRIVATE
   ${EIGEN3_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${TORCH_INCLUDE_DIRS}
 )
+target_link_libraries(motor_test PRIVATE ${TORCH_LIBRARIES})
 # ---- Tangair USB2CAN SDK: 选择一种方式 ----
 # 方式A：如果你有 usb_can.c / usb_can.cpp 源码（推荐简单）
 if (EXISTS "${PROJECT_SOURCE_DIR}/third_party/tangair_usb2can/usb_can.c")
