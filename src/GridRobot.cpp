@@ -1155,6 +1155,16 @@ bool GridRobot::checkMotorLimits_() {
       std::cout << "[safety] " << limit_reason_ << " -> damping all motors\n";
       return true;
     }
+
+    if (out.dim() == 2 && out.size(0) == 1) out = out.squeeze(0);
+    out = out.to(torch::kCPU).contiguous();
+
+    std::vector<float> action(out.numel());
+    std::memcpy(action.data(), out.data_ptr<float>(), out.numel() * sizeof(float));
+    return action;
+  } catch (const std::exception& e) {
+    std::cerr << "[policy] forward failed: " << e.what() << "\n";
+    return {};
   }
   return false;
 }
