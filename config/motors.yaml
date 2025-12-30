@@ -1,0 +1,44 @@
+master_id: 0xFF
+
+devices:
+  - name: usb2can0
+    path: /dev/USB2CAN0
+    buses:
+      - channel: 1
+        motors:
+          - { id: 1, type: RS00, enabled: true, group: "u0b1" }
+          - { id: 2, type: RS00, enabled: true, group: "u0b1" }
+          - { id: 3, type: RS00, enabled: true, group: "u0b1" }
+      - channel: 2
+        motors:
+          - { id: 1, type: RS00, enabled: true, group: "u0b2" }
+          - { id: 2, type: RS00, enabled: true, group: "u0b2" }
+          - { id: 3, type: RS00, enabled: true, group: "u0b2" }
+
+  - name: usb2can1
+    path: /dev/USB2CAN1
+    buses:
+      - channel: 1
+        motors:
+          - { id: 1, type: RS04, enabled: true, group: "u1b1" }
+          - { id: 2, type: RS04, enabled: true, group: "u1b1" }
+          - { id: 3, type: RS02, enabled: true, group: "u1b1" }
+      - channel: 2
+        motors:
+          - { id: 1, type: RS04, enabled: true, group: "u1b2" }
+          - { id: 2, type: RS02, enabled: true, group: "u1b2" }
+          - { id: 3, type: RS02, enabled: true, group: "u1b2" }
+
+  - name: usb2can2
+    path: /dev/USB2CAN2
+    buses:
+      - channel: 1
+        motors:
+          - { id: 1, type: RS04, enabled: true, group: "u2b1" }
+          - { id: 2, type: RS04, enabled: true, group: "u2b1" }
+          - { id: 3, type: RS02, enabled: true, group: "u2b1" }
+      - channel: 2
+        motors:
+          - { id: 1, type: RS04, enabled: true, group: "u2b2" }
+          - { id: 2, type: RS02, enabled: true, group: "u2b2" }
+          - { id: 3, type: RS02, enabled: true, group: "u2b2" }

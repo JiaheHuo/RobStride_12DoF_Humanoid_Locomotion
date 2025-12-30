@@ -1,0 +1,40 @@
+cmake_minimum_required(VERSION 3.16)
+project(robstride_usb2can_ctrl LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(yaml-cpp REQUIRED)
+
+include_directories(
+  ${PROJECT_SOURCE_DIR}/include
+  ${PROJECT_SOURCE_DIR}/third_party/tangair_usb2can
+)
+
+add_executable(motor_test
+  src/main.cpp
+  src/config.cpp
+  src/router.cpp
+  src/motor.cpp
+  src/stats.cpp
+)
+
+target_link_libraries(motor_test PRIVATE yaml-cpp pthread)
+
+# ---- Tangair USB2CAN SDK: 选择一种方式 ----
+# 方式A：如果你有 usb_can.c / usb_can.cpp 源码（推荐简单）
+if (EXISTS "${PROJECT_SOURCE_DIR}/third_party/tangair_usb2can/usb_can.c")
+  target_sources(motor_test PRIVATE third_party/tangair_usb2can/usb_can.c)
+elseif (EXISTS "${PROJECT_SOURCE_DIR}/third_party/tangair_usb2can/usb_can.cpp")
+  target_sources(motor_test PRIVATE third_party/tangair_usb2can/usb_can.cpp)
+endif()
+
+# 方式B：如果你只有 libusb_can.a 或 libusb_can.so
+if (EXISTS "${PROJECT_SOURCE_DIR}/third_party/tangair_usb2can/libusb_can.a")
+  target_link_libraries(motor_test PRIVATE ${PROJECT_SOURCE_DIR}/third_party/tangair_usb2can/libusb_can.a)
+elseif (EXISTS "${PROJECT_SOURCE_DIR}/third_party/tangair_usb2can/libusb_can.so")
+  target_link_libraries(motor_test PRIVATE ${PROJECT_SOURCE_DIR}/third_party/tangair_usb2can/libusb_can.so)
+endif()
+
+# 优化 & 警告
+target_compile_options(motor_test PRIVATE -O2 -Wall -Wextra)
