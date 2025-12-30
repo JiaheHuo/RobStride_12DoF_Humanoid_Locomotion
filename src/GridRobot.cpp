@@ -580,90 +580,94 @@ void GridRobot::databusRead_() {
 }
 
 void GridRobot::ankleCalc_() {
-  // ---- motor index：用于取Ankle电机状态 ----
-  auto it1 = idx_.find("L_ankle_L");
-  auto it2 = idx_.find("L_ankle_R");
-  if (it1 == idx_.end() || it2 == idx_.end()) return;
-  const int im1 = it1->second;
-  const int im2 = it2->second;
-   // ---- joint index：用于写 pitch/roll 的关节状态（jointName list）----
-  auto jp_it = joint_idx_.find("L_ankle_pitch");
-  auto jr_it = joint_idx_.find("L_ankle_roll");
-  if (jp_it == joint_idx_.end() || jr_it == joint_idx_.end()) return;
-  const int j_pitch = jp_it->second;
-  const int j_roll  = jr_it->second;
-  // motordata Fetch(rad, rad/s, Nm)
-  const double m1_rad = motorPos_rad_(im1);
-  const double m2_rad = motorPos_rad_(im2);
-  // const double v1_rad = motorVel_rad_(im1);
-  // const double v2_rad = motorVel_rad_(im2);
-  // const double t1_Nm  = motorTau_Nm_(im1);
-  // const double t2_Nm  = motorTau_Nm_(im2);
-  // 转单位
-  double m1_deg = ankle::rad2deg(m1_rad);
-  double m2_deg = ankle::rad2deg(m2_rad);
+  auto idx_motor = [&](const char* name)->int{
+    auto it = idx_.find(name);
+    return (it == idx_.end()) ? -1 : it->second;
+  };
+  auto idx_joint = [&](const char* name)->int{
+    auto it = joint_idx_.find(name);
+    return (it == joint_idx_.end()) ? -1 : it->second;
+  };
 
-  auto fk = ankle::forwardKinematics(ankleP_, m1_deg, m2_deg, 0.0, 0.0, 80, 1e-10);
-  if (!fk.ok) return;
-
-  last_L_pitch_deg_ = fk.joint_deg.pitch_deg;
-  last_L_roll_deg_  = fk.joint_deg.roll_deg;
-  // 更新一下joint的Pos数据
-  jointPos_rad_(j_pitch) = ankle::deg2rad(last_L_pitch_deg_);
-  jointPos_rad_(j_roll)  = ankle::deg2rad(last_L_roll_deg_);
-
-  databus_.jointState(j_pitch).q_joint = jointPos_rad_(j_pitch);
-  databus_.jointState(j_roll).q_joint  = jointPos_rad_(j_roll);
-  // 计算并更新Vel
-  Eigen::Vector2d qdot = ankle::fkVelocity_joint(
-    ankleP_, 
-    jointPos_rad_(j_pitch),
-    jointPos_rad_(j_roll),
-    motorPos_rad_(im1),
-    motorPos_rad_(im2),
-    motorVel_rad_(im1),
-    motorVel_rad_(im2)
-  );
-  jointVel_rad_(j_pitch) = qdot(0);
-  jointVel_rad_(j_roll) = qdot(1);
-  databus_.jointState(j_pitch).dq_joint = qdot(0);
-  databus_.jointState(j_roll).dq_joint = qdot(1);
-  // 计算并更新Tau
-  // const double tau_m1 = motorTau_Nm_(im1);
-  // const double tau_m2 = motorTau_Nm_(im2);
-
-  Eigen::Vector2d tau_q = ankle::fkTorque_joint(
-    ankleP_,
-    jointPos_rad_(j_pitch),
-    jointPos_rad_(j_roll),
-    motorPos_rad_(im1),
-    motorPos_rad_(im2),
-    motorTau_Nm_(im1),
-    motorTau_Nm_(im2), +1.0);
-
-  jointTau_Nm_(j_pitch) = tau_q(0);
-  jointTau_Nm_(j_roll) = tau_q(1);
-  databus_.jointState(j_pitch).tau_joint = tau_q(0);
-  databus_.jointState(j_roll).tau_joint = tau_q(1);
-  // FK->IK 自洽误差
-  auto ik = ankle::inverseKinematics(ankleP_, last_L_pitch_deg_, last_L_roll_deg_);
-  if (ik.ok)
+  auto calc_one = [&](const char* motorLeft, const char* motorRight,
+                     const char* jointPitch, const char* jointRoll,
+                     double& last_pitch_deg, double& last_roll_deg,
+                     double& last_fkik_em1_deg, double& last_fkik_em2_deg)
   {
-    auto err = [&](const decltype(ik.sol_minus) &sol)
-    {
-      return std::abs(sol.m1_deg - m1_deg) + std::abs(sol.m2_deg - m2_deg);
-    };
-    const double e_minus = err(ik.sol_minus);
-    const double e_plus = err(ik.sol_plus);
-    const auto &sol = (e_minus <= e_plus) ? ik.sol_minus : ik.sol_plus;
-    last_L_fkik_em1_deg_ = std::abs(sol.m1_deg - m1_deg);
-    last_L_fkik_em2_deg_ = std::abs(sol.m2_deg - m2_deg);
-  }
-  else
-  {
-    last_L_fkik_em1_deg_ = NAN;
-    last_L_fkik_em2_deg_ = NAN;
-  }
+    const int im1 = idx_motor(motorLeft);
+    const int im2 = idx_motor(motorRight);
+    const int j_pitch = idx_joint(jointPitch);
+    const int j_roll  = idx_joint(jointRoll);
+    if (im1 < 0 || im2 < 0 || j_pitch < 0 || j_roll < 0) return;
+
+    const double m1_rad = motorPos_rad_(im1);
+    const double m2_rad = motorPos_rad_(im2);
+    const double m1_deg = ankle::rad2deg(m1_rad);
+    const double m2_deg = ankle::rad2deg(m2_rad);
+
+    auto fk = ankle::forwardKinematics(ankleP_, m1_deg, m2_deg, 0.0, 0.0, 80, 1e-10);
+    if (!fk.ok) return;
+
+    last_pitch_deg = fk.joint_deg.pitch_deg;
+    last_roll_deg  = fk.joint_deg.roll_deg;
+
+    // joint pos(rad)
+    jointPos_rad_(j_pitch) = ankle::deg2rad(last_pitch_deg);
+    jointPos_rad_(j_roll)  = ankle::deg2rad(last_roll_deg);
+    databus_.jointState(j_pitch).q_joint = jointPos_rad_(j_pitch);
+    databus_.jointState(j_roll ).q_joint = jointPos_rad_(j_roll);
+
+    // joint vel(rad/s)
+    Eigen::Vector2d qdot = ankle::fkVelocity_joint(
+      ankleP_,
+      jointPos_rad_(j_pitch), jointPos_rad_(j_roll),
+      motorPos_rad_(im1), motorPos_rad_(im2),
+      motorVel_rad_(im1), motorVel_rad_(im2)
+    );
+    jointVel_rad_(j_pitch) = qdot(0);
+    jointVel_rad_(j_roll)  = qdot(1);
+    databus_.jointState(j_pitch).dq_joint = qdot(0);
+    databus_.jointState(j_roll ).dq_joint = qdot(1);
+
+    // joint tau(Nm)
+    Eigen::Vector2d tau_q = ankle::fkTorque_joint(
+      ankleP_,
+      jointPos_rad_(j_pitch), jointPos_rad_(j_roll),
+      motorPos_rad_(im1), motorPos_rad_(im2),
+      motorTau_Nm_(im1), motorTau_Nm_(im2),
+      +1.0
+    );
+    jointTau_Nm_(j_pitch) = tau_q(0);
+    jointTau_Nm_(j_roll ) = tau_q(1);
+    databus_.jointState(j_pitch).tau_joint = tau_q(0);
+    databus_.jointState(j_roll ).tau_joint = tau_q(1);
+
+    // FK->IK 自洽误差
+    auto ik = ankle::inverseKinematics(ankleP_, last_pitch_deg, last_roll_deg);
+    if (ik.ok) {
+      auto err = [&](const decltype(ik.sol_minus)& sol){
+        return std::abs(sol.m1_deg - m1_deg) + std::abs(sol.m2_deg - m2_deg);
+      };
+      const double e_minus = err(ik.sol_minus);
+      const double e_plus  = err(ik.sol_plus);
+      const auto& sol = (e_minus <= e_plus) ? ik.sol_minus : ik.sol_plus;
+      last_fkik_em1_deg = std::abs(sol.m1_deg - m1_deg);
+      last_fkik_em2_deg = std::abs(sol.m2_deg - m2_deg);
+    } else {
+      last_fkik_em1_deg = NAN;
+      last_fkik_em2_deg = NAN;
+    }
+  };
+
+  calc_one("L_ankle_L", "L_ankle_R",
+           "L_ankle_pitch", "L_ankle_roll",
+           last_L_pitch_deg_, last_L_roll_deg_,
+           last_L_fkik_em1_deg_, last_L_fkik_em2_deg_);
+
+  calc_one("R_ankle_L", "R_ankle_R",
+           "R_ankle_pitch", "R_ankle_roll",
+           last_R_pitch_deg_, last_R_roll_deg_,
+           last_R_fkik_em1_deg_, last_R_fkik_em2_deg_);
 }
 
 void GridRobot::databusWrite_(double t) {
@@ -672,32 +676,31 @@ void GridRobot::databusWrite_(double t) {
   motorCmdVel_rad_.setZero();
   jointCmdPos_rad_.setZero();
   jointCmdVel_rad_.setZero();
-  // find LeftAnkle motor idx (1/2)
-  int im1 = -1, im2 = -1;
-  {
-    auto it = idx_.find("L_ankle_L");
-    if (it != idx_.end()) im1 = it->second;
-    it = idx_.find("L_ankle_R");
-    if (it != idx_.end()) im2 = it->second;
-  }
+  auto idx_or = [&](const std::unordered_map<std::string,int>& m, const char* n){
+    auto it = m.find(n);
+    return (it == m.end()) ? -1 : it->second;
+  };
 
-  // find LeftAnkle joint idx（pitch/roll）
-  int j_pitch = -1, j_roll = -1;
-  {
-    auto it = joint_idx_.find("L_ankle_pitch");
-    if (it != joint_idx_.end()) j_pitch = it->second;
-    it = joint_idx_.find("L_ankle_roll");
-    if (it != joint_idx_.end()) j_roll = it->second;
-  }
+  // 左踝
+  const int l_m1 = idx_or(idx_, "L_ankle_L");
+  const int l_m2 = idx_or(idx_, "L_ankle_R");
+  const int l_jp = idx_or(joint_idx_, "L_ankle_pitch");
+  const int l_jr = idx_or(joint_idx_, "L_ankle_roll");
+  // 右踝
+  const int r_m1 = idx_or(idx_, "R_ankle_L");
+  const int r_m2 = idx_or(idx_, "R_ankle_R");
+  const int r_jp = idx_or(joint_idx_, "R_ankle_pitch");
+  const int r_jr = idx_or(joint_idx_, "R_ankle_roll");
+
   // 生成每个电机的 motorCmd
-  auto is_left_ankle_motor = [&](int i){
-  return (i==im1 || i==im2);
-};
+  auto is_ankle_motor = [&](int i){
+    return (i==l_m1 || i==l_m2 || i==r_m1 || i==r_m2);
+  };
   for (int i=0;i<(int)active_.size();++i) {
 
     databus_.motorCmd(i) = MotorCmd{};
 
-    if (im1>=0 && im2>=0 && is_left_ankle_motor(i) && args_.test != "damping") continue;
+    if (is_ankle_motor(i) && args_.test != "damping") continue;
 
     auto& motorCmd = databus_.motorCmd(i);
     
@@ -762,25 +765,22 @@ void GridRobot::databusWrite_(double t) {
     // damping 时不做 IK 控制踝
     return;
   }
-  // 进行IK
-  if(im1 >= 0 && im2>=0 && j_pitch>=0 && j_roll>=0){
+  // 进行IK（左右踝）
+  auto apply_ankle_ik = [&](int im1, int im2, int j_pitch, int j_roll)
+  {
+    if (im1 < 0 || im2 < 0 || j_pitch < 0 || j_roll < 0) return;
+
     double pitch_des = 0.0, roll_des = 0.0;
     double pitch_d_des = 0.0, roll_d_des = 0.0;
 
-    if (args_.test == "damping") {
-      pitch_des = 0.0; roll_des = 0.0;
-      pitch_d_des = 0.0; roll_d_des = 0.0;
-    }
-    else if (args_.test == "hold") {
+    if (args_.test == "hold") {
       pitch_des = 0.0; roll_des = 0.0;
       pitch_d_des = 0.0; roll_d_des = 0.0;
     }
     else if (args_.test == "sine") {
-      // 用 databus_.sine 在 joint index 上存 joint 的 q0
       auto& sp_p = databus_.sine(j_pitch);
       auto& sp_r = databus_.sine(j_roll);
 
-      // 需要 ankleCalc_ 已先跑过，使 jointPos_rad_ 有当前值
       if (!sp_p.armed) {
         sp_p.amp_rad = args_.sine_amp;
         sp_p.freq_hz = args_.sine_freq;
@@ -798,17 +798,15 @@ void GridRobot::databusWrite_(double t) {
       pitch_des   = sp_p.q0 + sp_p.amp_rad * std::sin(w * t);
       pitch_d_des = sp_p.amp_rad * w * std::cos(w * t);
 
-      // roll 可给相位差
       roll_des    = sp_r.q0 + sp_r.amp_rad * std::cos(w * t);
       roll_d_des  = -sp_r.amp_rad * w * std::sin(w * t);
     }
     else {
-      // default: disable
       databus_.motorCmd(im1) = MotorCmd{};
       databus_.motorCmd(im2) = MotorCmd{};
       return;
     }
-// 写 jointCmd 记录
+
     jointCmdPos_rad_(j_pitch) = pitch_des;
     jointCmdVel_rad_(j_pitch) = pitch_d_des;
     jointCmdPos_rad_(j_roll ) = roll_des;
@@ -819,18 +817,16 @@ void GridRobot::databusWrite_(double t) {
     databus_.jointCmd(j_roll ).q_joint_des  = (float)roll_des;
     databus_.jointCmd(j_roll ).dq_joint_des = (float)roll_d_des;
 
-    // IK (deg)
-
     auto ik = ankle::inverseKinematics(
-      ankleP_, 
-      ankle::rad2deg(pitch_des), 
+      ankleP_,
+      ankle::rad2deg(pitch_des),
       ankle::rad2deg(roll_des));
     if (!ik.ok) {
       databus_.motorCmd(im1) = MotorCmd{};
       databus_.motorCmd(im2) = MotorCmd{};
       return;
     }
-    // 选更近的解，避免 sol_plus/sol_minus 跳变
+
     const double m1_deg_cur = ankle::rad2deg(motorPos_rad_(im1));
     const double m2_deg_cur = ankle::rad2deg(motorPos_rad_(im2));
     auto err = [&](const decltype(ik.sol_minus)& s){
@@ -841,26 +837,22 @@ void GridRobot::databusWrite_(double t) {
     const double m1_des_rad = ankle::deg2rad(sol.m1_deg);
     const double m2_des_rad = ankle::deg2rad(sol.m2_deg);
 
-    // 速度：joint_dot -> motor_dot
-
     Eigen::Vector2d mdot = ankle::ikVelocity_motor(
-        ankleP_, 
-        jointPos_rad_(j_pitch), 
-        jointPos_rad_(j_roll), 
-        motorPos_rad_(im1), 
+        ankleP_,
+        jointPos_rad_(j_pitch),
+        jointPos_rad_(j_roll),
+        motorPos_rad_(im1),
         motorPos_rad_(im2),
-        pitch_d_des, 
+        pitch_d_des,
         roll_d_des);
 
-    // 更新下发到两个踝电机的 motorCmd（引用)
     auto& c1 = databus_.motorCmd(im1);
     c1.enable = true;
     c1.mode   = CtrlMode::MOTION;
     c1.tau_ff = 0.f;
     c1.q_des  = (float)m1_des_rad;
     c1.dq_des = (float)mdot(0);
-    c1.kp = kp_by_idx_[im1];
-    // c1.kp     = (args_.test == "damping") ? 0.f : kp_by_idx_[im1];
+    c1.kp     = kp_by_idx_[im1];
     c1.kd     = kd_by_idx_[im1];
 
     auto& c2 = databus_.motorCmd(im2);
@@ -869,16 +861,12 @@ void GridRobot::databusWrite_(double t) {
     c2.tau_ff = 0.f;
     c2.q_des  = (float)m2_des_rad;
     c2.dq_des = (float)mdot(1);
-    // c2.kp     = (args_.test == "damping") ? 0.f : kp_by_idx_[im2];
-    c2.kp = kp_by_idx_[im2];
+    c2.kp     = kp_by_idx_[im2];
     c2.kd     = kd_by_idx_[im2];
+  };
 
-    // 记录到 motorCmd 观测缓存 应该可以直接删了
-    // motorCmdPos_rad_(im1) = c1.q_des;
-    // motorCmdVel_rad_(im1) = c1.dq_des;
-    // motorCmdPos_rad_(im2) = c2.q_des;
-    // motorCmdVel_rad_(im2) = c2.dq_des;
-  }
+  apply_ankle_ik(l_m1, l_m2, l_jp, l_jr);
+  apply_ankle_ik(r_m1, r_m2, r_jp, r_jr);
 
   // 记录一下本周期 command（用于后续 log/观测）
   for (int i=0;i<(int)active_.size();++i) {
@@ -1091,9 +1079,14 @@ void GridRobot::printStep_() {
 
     // 补充一行 ankle 观测
     if (!std::isnan(last_L_pitch_deg_)) {
-      std::cout << "[ankle] pitch=" << last_L_pitch_deg_
+      std::cout << "[L_ankle] pitch=" << last_L_pitch_deg_
                 << " roll=" << last_L_roll_deg_
                 << " fkik_err_m(deg)=(" << last_L_fkik_em1_deg_ << "," << last_L_fkik_em2_deg_ << ")\n";
+    }
+    if (!std::isnan(last_R_pitch_deg_)) {
+      std::cout << "[R_ankle] pitch=" << last_R_pitch_deg_
+                << " roll=" << last_R_roll_deg_
+                << " fkik_err_m(deg)=(" << last_R_fkik_em1_deg_ << "," << last_R_fkik_em2_deg_ << ")\n";
     }
   }
 }
@@ -1162,6 +1155,16 @@ bool GridRobot::checkMotorLimits_() {
       std::cout << "[safety] " << limit_reason_ << " -> damping all motors\n";
       return true;
     }
+
+    if (out.dim() == 2 && out.size(0) == 1) out = out.squeeze(0);
+    out = out.to(torch::kCPU).contiguous();
+
+    std::vector<float> action(out.numel());
+    std::memcpy(action.data(), out.data_ptr<float>(), out.numel() * sizeof(float));
+    return action;
+  } catch (const std::exception& e) {
+    std::cerr << "[policy] forward failed: " << e.what() << "\n";
+    return {};
   }
   return false;
 }

@@ -3,8 +3,9 @@
 ## 构建（含 libtorch）
 1. 下载与编译环境一致的 [LibTorch](https://pytorch.org/get-started/locally/) 发行版并解压，例如 `/opt/libtorch`.
 2. 配置 CMake 前缀（任选其一）：
-   - `export CMAKE_PREFIX_PATH=/opt/libtorch`
+   - `export CMAKE_PREFIX_PATH=/opt/libtorch${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}`
    - 或在配置时传入 `-DTorch_DIR=/opt/libtorch/share/cmake/Torch`
+   - 如果放在 `/opt/libtorch` 并保持默认路径，`CMakeLists.txt` 会自动尝试该 Torch_DIR。
 3. 项目已在 `CMakeLists.txt` 中使用 `find_package(Torch REQUIRED)` 并链接 `${TORCH_LIBRARIES}`；无需手改源码，只需保证 CMake 能找到 libtorch。
 4. 常见的本地构建命令：
    ```bash
