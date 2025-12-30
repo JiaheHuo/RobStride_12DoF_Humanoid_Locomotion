@@ -12,6 +12,7 @@ struct MotorKey {
   std::string dev_name;
   std::string group;
   std::string type_str;
+  std::string motor_name;
 };
 
 struct MotorCounters {
@@ -43,4 +44,5 @@ private:
 
   std::deque<Entry> motors_;
   std::chrono::steady_clock::time_point last_print_ = std::chrono::steady_clock::now();
+  std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();
 };

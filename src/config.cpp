@@ -35,6 +35,10 @@ AppConfig load_config_yaml(const std::string& file) {
         ms.type = actuator_from_string(mN["type"].as<std::string>());
         ms.enabled = mN["enabled"] ? mN["enabled"].as<bool>() : true;
         ms.group = mN["group"] ? mN["group"].as<std::string>() : "";
+        ms.kp = mN["kp"] ? mN["kp"].as<float>():20.f;
+        ms.kd = mN["kd"] ? mN["kd"].as<float>():1.0f;
+        ms.motorName = mN["motorName"] ? mN["motorName"].as<std::string>() : "";
+
         bus.motors.push_back(ms);
       }
       dev.buses.push_back(bus);

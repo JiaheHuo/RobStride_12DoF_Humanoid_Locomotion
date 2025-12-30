@@ -20,7 +20,7 @@ struct BusHandle {
 class RobStrideMotor {
 public:
   RobStrideMotor(BusHandle bus, uint8_t master_id, uint8_t motor_id, ActuatorType type,
-                 std::string group, Stats* stats, int stats_idx);
+                 std::string group, Stats* stats, int stats_idx, std::string motorName);
 
   uint8_t motor_id() const { return motor_id_; }
   const BusHandle& bus() const { return bus_; }
@@ -42,6 +42,7 @@ public:
   void on_frame(const Usb2CanFrame& f);
 
   std::optional<PVTT> last_pvtt() const;
+  std::string motorName_;
 
 private:
   BusHandle bus_;
@@ -49,6 +50,7 @@ private:
   uint8_t motor_id_;
   ActuatorType type_;
   std::string group_;
+  
 
   Stats* stats_ = nullptr;
   int stats_idx_ = -1;

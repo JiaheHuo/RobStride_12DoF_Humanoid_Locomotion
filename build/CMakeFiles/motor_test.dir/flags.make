@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_FLAGS =   -O2 -Wall -Wextra -std=gnu++17
 
-CXX_DEFINES = 
+CXX_DEFINES = -DRS_DO_MOTOR_INIT=1 -DRS_ENABLE_TELEMETRY=1
 
-CXX_INCLUDES = -I/home/jhuo/robstride_usb2can_ctrl/include -I/home/jhuo/robstride_usb2can_ctrl/third_party/tangair_usb2can 
+CXX_INCLUDES = -I/home/jhuo/robstride_usb2can_ctrl/include -I/home/jhuo/robstride_usb2can_ctrl/third_party/tangair_usb2can -I/home/jhuo/model_based_control/cyborg-test-static-arm/src/src/azureloong_control/third_party/eigen3 
 

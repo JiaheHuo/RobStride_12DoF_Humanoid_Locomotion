@@ -10,6 +10,9 @@ struct MotorSpec {
   ActuatorType type = ActuatorType::RS04;
   bool enabled = true;
   std::string group;
+  float kp = 20.f;   // 默认值
+  float kd = 1.0f;
+  std::string motorName;
 };
 
 struct BusSpec {

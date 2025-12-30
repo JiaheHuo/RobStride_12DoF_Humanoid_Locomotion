@@ -2,9 +2,9 @@
 #include <cstring>
 
 RobStrideMotor::RobStrideMotor(BusHandle bus, uint8_t master_id, uint8_t motor_id, ActuatorType type,
-                               std::string group, Stats* stats, int stats_idx)
+                               std::string group, Stats* stats, int stats_idx, std::string motorName)
 : bus_(bus), master_id_(master_id), motor_id_(motor_id), type_(type),
-  group_(std::move(group)), stats_(stats), stats_idx_(stats_idx) {}
+  group_(std::move(group)), stats_(stats), stats_idx_(stats_idx),motorName_(motorName) {}
 
 void RobStrideMotor::enable() {
   std::array<uint8_t,8> data{}; data.fill(0);

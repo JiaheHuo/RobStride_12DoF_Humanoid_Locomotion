@@ -123,6 +123,60 @@ motor_test/fast:
 	$(MAKE) -f CMakeFiles/motor_test.dir/build.make CMakeFiles/motor_test.dir/build
 .PHONY : motor_test/fast
 
+src/GridRobot.o: src/GridRobot.cpp.o
+
+.PHONY : src/GridRobot.o
+
+# target to build an object file
+src/GridRobot.cpp.o:
+	$(MAKE) -f CMakeFiles/motor_test.dir/build.make CMakeFiles/motor_test.dir/src/GridRobot.cpp.o
+.PHONY : src/GridRobot.cpp.o
+
+src/GridRobot.i: src/GridRobot.cpp.i
+
+.PHONY : src/GridRobot.i
+
+# target to preprocess a source file
+src/GridRobot.cpp.i:
+	$(MAKE) -f CMakeFiles/motor_test.dir/build.make CMakeFiles/motor_test.dir/src/GridRobot.cpp.i
+.PHONY : src/GridRobot.cpp.i
+
+src/GridRobot.s: src/GridRobot.cpp.s
+
+.PHONY : src/GridRobot.s
+
+# target to generate assembly for a file
+src/GridRobot.cpp.s:
+	$(MAKE) -f CMakeFiles/motor_test.dir/build.make CMakeFiles/motor_test.dir/src/GridRobot.cpp.s
+.PHONY : src/GridRobot.cpp.s
+
+src/ankle_kinematics.o: src/ankle_kinematics.cpp.o
+
+.PHONY : src/ankle_kinematics.o
+
+# target to build an object file
+src/ankle_kinematics.cpp.o:
+	$(MAKE) -f CMakeFiles/motor_test.dir/build.make CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.o
+.PHONY : src/ankle_kinematics.cpp.o
+
+src/ankle_kinematics.i: src/ankle_kinematics.cpp.i
+
+.PHONY : src/ankle_kinematics.i
+
+# target to preprocess a source file
+src/ankle_kinematics.cpp.i:
+	$(MAKE) -f CMakeFiles/motor_test.dir/build.make CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.i
+.PHONY : src/ankle_kinematics.cpp.i
+
+src/ankle_kinematics.s: src/ankle_kinematics.cpp.s
+
+.PHONY : src/ankle_kinematics.s
+
+# target to generate assembly for a file
+src/ankle_kinematics.cpp.s:
+	$(MAKE) -f CMakeFiles/motor_test.dir/build.make CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.s
+.PHONY : src/ankle_kinematics.cpp.s
+
 src/config.o: src/config.cpp.o
 
 .PHONY : src/config.o
@@ -258,6 +312,33 @@ src/stats.cpp.s:
 	$(MAKE) -f CMakeFiles/motor_test.dir/build.make CMakeFiles/motor_test.dir/src/stats.cpp.s
 .PHONY : src/stats.cpp.s
 
+src/witmotion_imu.o: src/witmotion_imu.cpp.o
+
+.PHONY : src/witmotion_imu.o
+
+# target to build an object file
+src/witmotion_imu.cpp.o:
+	$(MAKE) -f CMakeFiles/motor_test.dir/build.make CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.o
+.PHONY : src/witmotion_imu.cpp.o
+
+src/witmotion_imu.i: src/witmotion_imu.cpp.i
+
+.PHONY : src/witmotion_imu.i
+
+# target to preprocess a source file
+src/witmotion_imu.cpp.i:
+	$(MAKE) -f CMakeFiles/motor_test.dir/build.make CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.i
+.PHONY : src/witmotion_imu.cpp.i
+
+src/witmotion_imu.s: src/witmotion_imu.cpp.s
+
+.PHONY : src/witmotion_imu.s
+
+# target to generate assembly for a file
+src/witmotion_imu.cpp.s:
+	$(MAKE) -f CMakeFiles/motor_test.dir/build.make CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.s
+.PHONY : src/witmotion_imu.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -267,6 +348,12 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
 	@echo "... motor_test"
+	@echo "... src/GridRobot.o"
+	@echo "... src/GridRobot.i"
+	@echo "... src/GridRobot.s"
+	@echo "... src/ankle_kinematics.o"
+	@echo "... src/ankle_kinematics.i"
+	@echo "... src/ankle_kinematics.s"
 	@echo "... src/config.o"
 	@echo "... src/config.i"
 	@echo "... src/config.s"
@@ -282,6 +369,9 @@ help:
 	@echo "... src/stats.o"
 	@echo "... src/stats.i"
 	@echo "... src/stats.s"
+	@echo "... src/witmotion_imu.o"
+	@echo "... src/witmotion_imu.i"
+	@echo "... src/witmotion_imu.s"
 .PHONY : help
 
 

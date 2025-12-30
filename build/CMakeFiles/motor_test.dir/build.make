@@ -122,13 +122,55 @@ CMakeFiles/motor_test.dir/src/stats.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/motor_test.dir/src/stats.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/jhuo/robstride_usb2can_ctrl/src/stats.cpp -o CMakeFiles/motor_test.dir/src/stats.cpp.s
 
+CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.o: CMakeFiles/motor_test.dir/flags.make
+CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.o: ../src/ankle_kinematics.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/jhuo/robstride_usb2can_ctrl/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.o"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.o -c /home/jhuo/robstride_usb2can_ctrl/src/ankle_kinematics.cpp
+
+CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/jhuo/robstride_usb2can_ctrl/src/ankle_kinematics.cpp > CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.i
+
+CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/jhuo/robstride_usb2can_ctrl/src/ankle_kinematics.cpp -o CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.s
+
+CMakeFiles/motor_test.dir/src/GridRobot.cpp.o: CMakeFiles/motor_test.dir/flags.make
+CMakeFiles/motor_test.dir/src/GridRobot.cpp.o: ../src/GridRobot.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/jhuo/robstride_usb2can_ctrl/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/motor_test.dir/src/GridRobot.cpp.o"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/motor_test.dir/src/GridRobot.cpp.o -c /home/jhuo/robstride_usb2can_ctrl/src/GridRobot.cpp
+
+CMakeFiles/motor_test.dir/src/GridRobot.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/motor_test.dir/src/GridRobot.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/jhuo/robstride_usb2can_ctrl/src/GridRobot.cpp > CMakeFiles/motor_test.dir/src/GridRobot.cpp.i
+
+CMakeFiles/motor_test.dir/src/GridRobot.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/motor_test.dir/src/GridRobot.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/jhuo/robstride_usb2can_ctrl/src/GridRobot.cpp -o CMakeFiles/motor_test.dir/src/GridRobot.cpp.s
+
+CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.o: CMakeFiles/motor_test.dir/flags.make
+CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.o: ../src/witmotion_imu.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/jhuo/robstride_usb2can_ctrl/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.o"
+	/usr/bin/c++  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.o -c /home/jhuo/robstride_usb2can_ctrl/src/witmotion_imu.cpp
+
+CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/jhuo/robstride_usb2can_ctrl/src/witmotion_imu.cpp > CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.i
+
+CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/jhuo/robstride_usb2can_ctrl/src/witmotion_imu.cpp -o CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.s
+
 # Object files for target motor_test
 motor_test_OBJECTS = \
 "CMakeFiles/motor_test.dir/src/main.cpp.o" \
 "CMakeFiles/motor_test.dir/src/config.cpp.o" \
 "CMakeFiles/motor_test.dir/src/router.cpp.o" \
 "CMakeFiles/motor_test.dir/src/motor.cpp.o" \
-"CMakeFiles/motor_test.dir/src/stats.cpp.o"
+"CMakeFiles/motor_test.dir/src/stats.cpp.o" \
+"CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.o" \
+"CMakeFiles/motor_test.dir/src/GridRobot.cpp.o" \
+"CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.o"
 
 # External object files for target motor_test
 motor_test_EXTERNAL_OBJECTS =
@@ -138,11 +180,14 @@ motor_test: CMakeFiles/motor_test.dir/src/config.cpp.o
 motor_test: CMakeFiles/motor_test.dir/src/router.cpp.o
 motor_test: CMakeFiles/motor_test.dir/src/motor.cpp.o
 motor_test: CMakeFiles/motor_test.dir/src/stats.cpp.o
+motor_test: CMakeFiles/motor_test.dir/src/ankle_kinematics.cpp.o
+motor_test: CMakeFiles/motor_test.dir/src/GridRobot.cpp.o
+motor_test: CMakeFiles/motor_test.dir/src/witmotion_imu.cpp.o
 motor_test: CMakeFiles/motor_test.dir/build.make
 motor_test: /usr/lib/x86_64-linux-gnu/libyaml-cpp.so.0.6.2
 motor_test: ../third_party/tangair_usb2can/libusb_can.so
 motor_test: CMakeFiles/motor_test.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/jhuo/robstride_usb2can_ctrl/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Linking CXX executable motor_test"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/jhuo/robstride_usb2can_ctrl/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Linking CXX executable motor_test"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/motor_test.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

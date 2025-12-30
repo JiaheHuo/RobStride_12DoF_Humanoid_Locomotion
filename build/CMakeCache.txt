@@ -183,6 +183,15 @@ CMAKE_STRIP:FILEPATH=/usr/bin/strip
 // Studio IDE projects all commands are done without /nologo.
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
+//Eigen3 include dir
+EIGEN3_INCLUDE_DIR:PATH=/home/jhuo/model_based_control/cyborg-test-static-arm/src/src/azureloong_control/third_party/eigen3
+
+//Run motor init sequence
+RS_DO_MOTOR_INIT:BOOL=ON
+
+//Enable telemetry printing
+RS_ENABLE_TELEMETRY:BOOL=ON
+
 //Value Computed by CMake
 robstride_usb2can_ctrl_BINARY_DIR:STATIC=/home/jhuo/robstride_usb2can_ctrl/build
 
