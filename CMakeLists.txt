@@ -4,11 +4,6 @@ project(robstride_usb2can_ctrl LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# libtorch hint (for zipped releases placed at /opt/libtorch)
-if(NOT DEFINED Torch_DIR AND EXISTS "/opt/libtorch/share/cmake/Torch")
-  set(Torch_DIR "/opt/libtorch/share/cmake/Torch" CACHE PATH "Path to TorchConfig.cmake")
-endif()
-
 find_package(yaml-cpp REQUIRED)
 find_package(Torch REQUIRED)
 option(RS_DO_MOTOR_INIT "Run motor init sequence" ON)
